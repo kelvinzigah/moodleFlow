@@ -20,13 +20,28 @@ def get_moodle_messages():
         "newestfirst": 1,
         "limitnum": 10,
     }
-    r = requests.get(f"{MOODLE_URL}/webservice/rest/server.php", params=params)
-    return r.json()
+    try:
+        r = requests.get(f"{MOODLE_URL}/webservice/rest/server.php", params=params, timeout=10)
+        r.raise_for_status()
+        return r.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Moodle request failed: {e}")
+        return {}
+    except ValueError:
+        print(f"Moodle returned non-JSON response: {r.text[:200]}")
+        return {}
 
 
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": TG_CHAT, "text": text, "parse_mode": "HTML"})
+    try:
+        r = requests.post(url, json={"chat_id": TG_CHAT, "text": text, "parse_mode": "HTML"}, timeout=10)
+        r.raise_for_status()
+        result = r.json()
+        if not result.get("ok"):
+            print(f"Telegram error: {result.get('description')}")
+    except requests.exceptions.RequestException as e:
+        print(f"Telegram request failed: {e}")
 
 
 def main():
