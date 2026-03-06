@@ -1,7 +1,11 @@
 import re
 import json
+import html
 import requests
 import os
+import schedule
+import time
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -88,8 +92,8 @@ def main():
 
         header = (
             f"📬 <b>New Moodle Message</b>\n"
-            f"From: {msg.get('userfromfullname', 'Unknown')}\n"
-            f"Subject: {msg.get('subject', '—')}\n"
+            f"From: {html.escape(msg.get('userfromfullname', 'Unknown'))}\n"
+            f"Subject: {html.escape(msg.get('subject', '—'))}\n"
             f"Body:\n"
         )
         body = strip_html(msg.get("text", "")).strip()
@@ -106,4 +110,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main()  # run once immediately on start
+    schedule.every(20).minutes.do(main)
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
