@@ -1,80 +1,18 @@
-import re
-import json
 import html
-import requests
-import os
 import schedule
 import time
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
-SEEN_IDS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seen_ids.json")
-
-MOODLE_TOKEN = os.getenv("MOODLE_TOKEN")
-MOODLE_URL = os.getenv("MOODLE_URL")
-USER_ID = os.getenv("MOODLE_USER_ID")
-TG_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TG_CHAT = os.getenv("TELEGRAM_CHAT_ID")
-
-
-def load_seen_ids():
-    if os.path.exists(SEEN_IDS_FILE):
-        with open(SEEN_IDS_FILE) as f:
-            return set(json.load(f))
-    return set()
-
-
-def save_seen_ids(seen_ids):
-    with open(SEEN_IDS_FILE, "w") as f:
-        json.dump(list(seen_ids), f)
-
-
-def strip_html(text):
-    return re.sub(r'<[^>]+>', '', text)
-
-
-def get_moodle_messages():
-    params = {
-        "wstoken": MOODLE_TOKEN,
-        "wsfunction": "core_message_get_messages",
-        "moodlewsrestformat": "json",
-        "useridto": USER_ID,
-        "newestfirst": 1,
-        "limitnum": 10,
-    }
-    try:
-        r = requests.get(f"{MOODLE_URL}/webservice/rest/server.php", params=params, timeout=10)
-        r.raise_for_status()
-        return r.json(), None
-    except requests.exceptions.RequestException as e:
-        msg = f"Moodle request failed: {e}"
-        print(msg)
-        return {}, msg
-    except ValueError:
-        msg = f"Moodle returned non-JSON response: {r.text[:200]}"
-        print(msg)
-        return {}, msg
-
-
-def send_telegram(text):
-    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-    try:
-        r = requests.post(url, json={"chat_id": TG_CHAT, "text": text, "parse_mode": "HTML"}, timeout=10)
-        r.raise_for_status()
-        result = r.json()
-        if not result.get("ok"):
-            print(f"Telegram error: {result.get('description')}")
-    except requests.exceptions.RequestException as e:
-        print(f"Telegram request failed: {e}")
+from core.state import load_seen_ids, save_seen_ids
+from connectors import moodle, telegram, google_calendar
+from agents import parser
 
 
 def main():
-    data, error = get_moodle_messages()
+    calendar_service = google_calendar.get_service()
+    data, error = moodle.get_messages()
 
     if "messages" not in data:
-        send_telegram("⚠️ Moodle fetch failed:\n" + (error or str(data)))
+        telegram.send("⚠️ Moodle fetch failed:\n" + (error or str(data)))
         return
 
     messages = data["messages"]
@@ -90,19 +28,39 @@ def main():
         if msg_id in seen_ids:
             continue
 
+        subject = msg.get("subject", "—")
+        body = moodle.strip_html(msg.get("text", "")).strip()
+
         header = (
             f"📬 <b>New Moodle Message</b>\n"
             f"From: {html.escape(msg.get('userfromfullname', 'Unknown'))}\n"
-            f"Subject: {html.escape(msg.get('subject', '—'))}\n"
+            f"Subject: {html.escape(subject)}\n"
             f"Body:\n"
         )
-        body = strip_html(msg.get("text", "")).strip()
-        text = header + body[:4096 - len(header)]
-        send_telegram(text)
-        print(f"Sent: {msg.get('subject')}")
+        telegram.send(header + body[:4096 - len(header)])
+        print(f"Sent: {subject}")
+
         if msg_id is not None:
             seen_ids.add(msg_id)
         new_count += 1
+
+        try:
+            parsed = parser.parse_message(subject, body)
+            print(f"Parsed: {parsed}")
+        except Exception as e:
+            print(f"AI parsing failed: {e}")
+            parsed = None
+
+        if parsed:
+            event_link = google_calendar.create_event(calendar_service, parsed, subject)
+            if event_link:
+                telegram.send(
+                    f"📅 <b>Deadline added to Google Calendar</b>\n"
+                    f"<b>{html.escape(subject)}</b>\n"
+                    f"Due: {parsed.get('due_date')} at {parsed.get('due_time') or '23:59'}\n"
+                    f"Type: {parsed.get('task_type', '—')} | Urgency: {parsed.get('urgency')}/5\n"
+                    f"<a href='{event_link}'>View event</a>"
+                )
 
     save_seen_ids(seen_ids)
     if new_count == 0:
@@ -110,7 +68,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()  # run once immediately on start
+    main()
     schedule.every(20).minutes.do(main)
     while True:
         schedule.run_pending()

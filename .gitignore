@@ -2,5 +2,11 @@
 venv/
 __pycache__/
 *.pyc
-seen_ids.json
 .vscode/
+credentials.json
+token.json
+
+# data files
+data/seen_ids.json
+data/credentials.json
+data/token.json
