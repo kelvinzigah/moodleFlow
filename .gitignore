@@ -1,5 +1,7 @@
 .env
 venv/
+.claude/settings.json
+.claude/settings.local.json
 __pycache__/
 *.pyc
 .vscode/
@@ -8,5 +10,6 @@ token.json
 
 # data files
 data/seen_ids.json
+data/seen_moodle_course_ids.json
 data/credentials.json
 data/token.json

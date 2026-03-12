@@ -10,23 +10,28 @@ _client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 def parse_message(subject: str, body: str) -> Optional[dict]:
     prompt = f"""You are a university student assistant.
-    Your job is to recieve the moodle messages I send you, analyse them in context,
-    return to me the a json in the format below:
+Your job is to receive Moodle messages and extract structured metadata from them.
 
 Subject: {subject}
 Body: {body}
 
 Return ONLY a JSON object with these fields, nothing else:
 {{
+  "is_assignment": true or false,
   "has_deadline": true or false,
   "due_date": "YYYY-MM-DD or null",
   "due_time": "HH:MM or null",
-  "task_type": "assignment, lab, exam, quiz, announcement, or other",
+  "task_type": "homework, lab, exam, quiz, project, assignment, announcement, or other",
   "course_code": "e.g. ENGR 233 or null",
   "action_required": true or false,
   "urgency": 1 to 5,
-  "summary": "one line human readable summary"
-}}"""
+  "summary": "one line human readable summary",
+  "suggested_topics": "comma-separated topic keywords relevant to this task, or null"
+}}
+
+Rules:
+- "is_assignment" is true ONLY for trackable academic tasks (homework, lab, exam, quiz, project, assignment). Set false for announcements, informational messages, grade posts, and general reminders.
+- "suggested_topics" should reflect the academic concepts this task covers (e.g. "Fourier transforms, convolution"). This is a staging field only — null if topics cannot be inferred."""
 
     for attempt in range(3):
         try:
