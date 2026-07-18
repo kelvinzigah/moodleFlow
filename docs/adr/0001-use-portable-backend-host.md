@@ -1,0 +1,3 @@
+# Use a portable backend host with Vercel frontend delivery
+
+School Assistant's browser-facing frontend and dashboard run on Vercel, initially using a `vercel.app` hostname and later a custom domain. FastAPI, the APScheduler worker, PostgreSQL, and the Telegram integration initially run on the user's current machine, but must use the same Docker Compose deployment and externalized configuration needed to move unchanged to another always-on laptop or the final small VPS. Durable state belongs in PostgreSQL, not machine-local application files; moving hosts consists of transferring configuration and restoring the database rather than changing application behavior.

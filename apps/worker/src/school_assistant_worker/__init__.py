@@ -1,0 +1,1 @@
+"""School Assistant worker application."""

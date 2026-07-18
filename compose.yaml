@@ -1,0 +1,80 @@
+name: moodleflow
+
+x-backend-environment: &backend-environment
+  ENVIRONMENT: ${ENVIRONMENT:-development}
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-school_assistant}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-school_assistant}
+  CREDENTIAL_KEY: ${CREDENTIAL_KEY:?Set CREDENTIAL_KEY in .env}
+  CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000"]}
+  TELEGRAM_MODE: ${TELEGRAM_MODE:-long_polling}
+  HEARTBEAT_INTERVAL_SECONDS: ${HEARTBEAT_INTERVAL_SECONDS:-60}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-school_assistant}
+      POSTGRES_USER: ${POSTGRES_USER:-school_assistant}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-school_assistant} -d ${POSTGRES_DB:-school_assistant}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  migrate:
+    build: .
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment: *backend-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    command:
+      - python
+      - -m
+      - uvicorn
+      - school_assistant_api.main:create_runtime_app
+      - --factory
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    environment: *backend-environment
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./data:/legacy:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  worker:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    command: ["python", "-m", "school_assistant_worker.main"]
+    environment: *backend-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

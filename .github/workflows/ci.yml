@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: school_assistant
+          POSTGRES_USER: school_assistant
+          POSTGRES_PASSWORD: school_assistant
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U school_assistant -d school_assistant"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql+asyncpg://school_assistant:school_assistant@localhost:5432/school_assistant
+      CREDENTIAL_KEY: fsKTrq2G-mduNxBfIR_yI6NYKuYvh09X4wVdK8hblcw=
+      ENVIRONMENT: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m ruff format --check packages apps tests migrations
+      - run: python -m ruff check packages apps tests migrations
+      - run: python -m mypy
+      - run: python -m pytest tests -q
+      - run: python -m alembic upgrade head
+      - run: python -m pip wheel . --no-deps --wheel-dir dist
+      - run: python -m pip install --force-reinstall --no-deps dist/school_assistant-*.whl
+      - run: cd /tmp && python -I -c "from school_assistant.connectors.moodle import strip_html; assert strip_html('<p>ready</p>') == 'ready'"
