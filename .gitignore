@@ -4,6 +4,13 @@ venv/
 .claude/settings.local.json
 __pycache__/
 *.pyc
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
 .vscode/
 credentials.json
 token.json

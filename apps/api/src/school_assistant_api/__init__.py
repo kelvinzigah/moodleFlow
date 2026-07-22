@@ -1,0 +1,1 @@
+"""School Assistant API application."""

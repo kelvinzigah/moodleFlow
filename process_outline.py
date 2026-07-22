@@ -1,8 +1,8 @@
 import sys
 import html
 
-from agents.outline_parser import parse_outline
-from connectors.notion import (
+from school_assistant.agents.outline_parser import parse_outline
+from school_assistant.connectors.notion import (
     find_class_by_course_code,
     create_class,
     find_topic_by_name,
@@ -10,7 +10,7 @@ from connectors.notion import (
     find_assignment_by_name,
     create_assignment,
 )
-from connectors.telegram import send as send_telegram
+from school_assistant.connectors.telegram import send as send_telegram
 
 
 def process(pdf_path: str):

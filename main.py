@@ -4,10 +4,15 @@ import json
 import schedule
 import time
 from core.state import load_seen_ids, save_seen_ids, load_seen_course_ids, save_seen_course_ids
-from connectors.moodle import get_messages
-from connectors.telegram import send as send_telegram, get_updates
-from connectors.notion import find_class_by_moodle_id, find_class_by_course_code, create_assignment, create_class
-from agents.parser import parse_message
+from school_assistant.agents.parser import parse_message
+from school_assistant.connectors.moodle import get_messages
+from school_assistant.connectors.notion import (
+    create_assignment,
+    create_class,
+    find_class_by_course_code,
+    find_class_by_moodle_id,
+)
+from school_assistant.connectors.telegram import get_updates, send as send_telegram
 
 
 def strip_html(text):
